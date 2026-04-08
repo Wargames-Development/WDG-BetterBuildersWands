@@ -1,5 +1,6 @@
 package portablejim.bbw.core;
 
+import apis.wgc.Integrations;
 import cpw.mods.fml.common.FMLLog;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLiquid;
@@ -93,6 +94,7 @@ public class WandWorker {
         if(!targetBlock.equals(candidateSupportingBlock)) return false;
         if(targetMetadata != candidateSupportingMeta) return false;
         //if(targetBlock instanceof BlockCrops) return false;
+        if(!Integrations.canPlaceBlockWGC(player.getPlayer().getUniqueID(),world.getWorld(),targetBlock,currentCandidate.x,currentCandidate.y,currentCandidate.z));
         if(!targetBlock.canPlaceBlockAt(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
         if(!targetBlock.canBlockStay(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
         if(!targetBlock.canReplace(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z, targetMetadata, new ItemStack(candidateSupportingBlock, 1, candidateSupportingMeta))) return false;
