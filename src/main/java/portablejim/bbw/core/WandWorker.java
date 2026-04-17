@@ -94,7 +94,7 @@ public class WandWorker {
         if(!targetBlock.equals(candidateSupportingBlock)) return false;
         if(targetMetadata != candidateSupportingMeta) return false;
         //if(targetBlock instanceof BlockCrops) return false;
-        if(!Integrations.canPlaceBlockWGC(player.getPlayer().getUniqueID(),world.getWorld(),targetBlock,currentCandidate.x,currentCandidate.y,currentCandidate.z));
+        if(!Integrations.canPlaceBlockWGC(player.getPlayer().getUniqueID(),world.getWorld(),targetBlock,currentCandidate.x,currentCandidate.y,currentCandidate.z)) return false;//ugh
         if(!targetBlock.canPlaceBlockAt(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
         if(!targetBlock.canBlockStay(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
         if(!targetBlock.canReplace(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z, targetMetadata, new ItemStack(candidateSupportingBlock, 1, candidateSupportingMeta))) return false;
