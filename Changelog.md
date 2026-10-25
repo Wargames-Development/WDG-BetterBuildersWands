@@ -1,8 +1,9 @@
 Changelog
 =========
 
-WDG protection fixes (unreleased)
---------------------------------
+0.8.2_X3 (WDG)
+--------------
+* Use BetterBuildersWands-WDG-<version>_X<build> for release names and the full version in mod metadata.
 * Check WGCore PLACE permission for every actual output block and honor Forge placement cancellation before consuming materials.
 * Validate every WGCore batch destination with the complete placement policy.
 * Fix forced mapping costs, multi-digit counts, split-stack payment and canceled-placement material loss.
