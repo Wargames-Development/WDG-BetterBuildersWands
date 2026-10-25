@@ -31,7 +31,7 @@ public class CustomMapping {
     }
 
     public ItemStack getItems() {
-        return items;
+        return items.copy();
     }
 
     public Block getPlaceBlock() {

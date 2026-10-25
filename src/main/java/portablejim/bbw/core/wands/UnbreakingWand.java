@@ -13,7 +13,7 @@ public class UnbreakingWand implements IWand {
             return 4096;
         }
         else {
-            return 1 << itemStack.getItemDamage();
+            return 1 << Math.min(14, itemStack.getItemDamage());
         }
     }
 

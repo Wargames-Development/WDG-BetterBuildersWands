@@ -49,6 +49,23 @@ minecraft {
 version = "${config.mod_version}-${config.minecraft_version}r${ext.depth}+${ext.revision}"
 dependencies {
     compile fileTree(dir: 'lib', include: ['*.jar'])
+    testCompile 'junit:junit:4.13.2'
+}
+
+compileTestJava {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+}
+
+// Forge 1.7 registries and cancelable events need LaunchWrapper's event transformer.
+task wandSafetyTest(type: JavaExec, dependsOn: testClasses) {
+    main = 'portablejim.bbw.core.ForgeTestRunner'
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.api.output
+    args 'portablejim.bbw.core.WandSafetyTest'
+}
+test {
+    exclude '**/WandSafetyTest.class'
+    dependsOn wandSafetyTest
 }
 processResources {
     from(sourceSets.main.resources.srcDirs) {

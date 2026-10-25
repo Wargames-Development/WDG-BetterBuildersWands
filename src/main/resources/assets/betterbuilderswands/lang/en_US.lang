@@ -31,3 +31,5 @@ bbw.chat.fluidmode.ignore=Fluid: Ignore - Builds through fluid (both source bloc
 bbw.chat.error.noundo=I can't remember what this wand last built.
 bbw.chat.error.nowand=You need to run this with a wand from Better Builders Wands in your hand.
 bbw.chat.error.bot=AI can detect Non-players. Please don't do that again.
+
+bbw.chat.error.undodisabled=Wand undo is disabled because legacy history cannot safely verify blocks or refunds.

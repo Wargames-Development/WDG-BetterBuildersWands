@@ -1,6 +1,15 @@
 Changelog
 =========
 
+WDG protection fixes (unreleased)
+--------------------------------
+* Check WGCore PLACE permission for every actual output block and honor Forge placement cancellation before consuming materials.
+* Validate every WGCore batch destination with the complete placement policy.
+* Fix forced mapping costs, multi-digit counts, split-stack payment and canceled-placement material loss.
+* Disable legacy /wandOops deletion and refunds, including receipts on existing wands.
+* Exclude tile-entity blocks (including flags and machines) from raw copying. Providers support single-item costs; multi-item mappings require ordinary inventory.
+* Add Forge-backed placement, inventory and mapping regression tests.
+
 0.8.1
 ------
 Fixes:

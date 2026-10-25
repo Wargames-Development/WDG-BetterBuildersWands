@@ -1,7 +1,5 @@
 package portablejim.bbw.core.items;
 
-import cpw.mods.fml.common.FMLLog;
-import cpw.mods.fml.common.registry.GameRegistry;
 import net.minecraft.block.Block;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.EntityLivingBase;
@@ -10,7 +8,6 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.Constants;
@@ -27,7 +24,6 @@ import portablejim.bbw.shims.CreativePlayerShim;
 import portablejim.bbw.shims.IPlayerShim;
 import portablejim.bbw.shims.IWorldShim;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -44,7 +40,7 @@ public abstract class ItemBasicWand extends Item implements IWandItem{
     }
 
     public boolean onItemUse(ItemStack itemstack, EntityPlayer player, World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ) {
-        if(wand == null) {
+        if(wand == null || world == null || player == null || side < 0 || side > 5) {
             return false;
         }
         if(itemstack == null) {
@@ -73,32 +69,7 @@ public abstract class ItemBasicWand extends Item implements IWandItem{
                 //FMLLog.info("Max blocks: %d (%d|%d", numBlocks, this.wand.getMaxBlocks(itemstack), playerShim.countItems(sourceItems));
                 LinkedList<Point3d> blocks = worker.getBlockPositionList(clickedPos, ForgeDirection.getOrientation(side), numBlocks, getMode(itemstack), getFaceLock(itemstack), getFluidMode(itemstack));
 
-                ArrayList<Point3d> placedBlocks = worker.placeBlocks(itemstack, blocks, clickedPos, sourceItems, side, hitX, hitY, hitZ);
-                if(placedBlocks.size() > 0) {
-                    int[] placedIntArray = new int[placedBlocks.size() * 3];
-                    for (int i = 0; i < placedBlocks.size(); i++) {
-                        Point3d currentPoint = placedBlocks.get(i);
-                        placedIntArray[i * 3] = currentPoint.x;
-                        placedIntArray[i * 3 + 1] = currentPoint.y;
-                        placedIntArray[i * 3 + 2] = currentPoint.z;
-                    }
-                    NBTTagCompound itemNBT = itemstack.hasTagCompound() ? itemstack.getTagCompound() : new NBTTagCompound();
-                    NBTTagCompound bbwCompound = new NBTTagCompound();
-                    if(itemNBT.hasKey("bbw", Constants.NBT.TAG_COMPOUND)) {
-                        bbwCompound = itemNBT.getCompoundTag("bbw");
-                    }
-                    if(!bbwCompound.hasKey("mask", Constants.NBT.TAG_SHORT)) {
-                        bbwCompound.setShort("mask", (short) this.getDefaultMode().mask);
-                    }
-                    if(!bbwCompound.hasKey("fluidmask", Constants.NBT.TAG_SHORT)) {
-                        bbwCompound.setShort("fluidmask", (short) this.getDefaultFluidMode().mask);
-                    }
-                    bbwCompound.setIntArray("lastPlaced", placedIntArray);
-                    bbwCompound.setString("lastBlock", Item.itemRegistry.getNameForObject(sourceItems.getItem()));
-                    bbwCompound.setInteger("lastDamage", sourceItems.getItemDamage());
-                    bbwCompound.setInteger("lastPerBlock", sourceItems.stackSize);
-                    itemstack.setTagInfo("bbw", bbwCompound);
-                }
+                worker.placeBlocks(itemstack, blocks, clickedPos, sourceItems, side, hitX, hitY, hitZ);
             }
 
         }

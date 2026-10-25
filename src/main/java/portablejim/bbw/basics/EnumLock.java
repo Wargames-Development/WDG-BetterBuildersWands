@@ -26,6 +26,6 @@ public enum EnumLock {
         EnumLock locks[] = { NORTHSOUTH, VERTICAL, VERTICALEASTWEST, EASTWEST, HORIZONTAL, VERTICALNORTHSOUTH, NOLOCK };
 
         int safeMask = inputMask & 7;
-        return locks[safeMask - 1];
+        return safeMask >= 1 && safeMask <= locks.length ? locks[safeMask - 1] : NOLOCK;
     }
 }

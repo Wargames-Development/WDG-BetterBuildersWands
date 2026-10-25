@@ -36,27 +36,33 @@ public class CustomMappingManager {
     }
 
     public CustomMapping parseMappingString(String mappingString) {
-        final String REGEX = "^(\\w[^:]+:[^/]+)/(\\d+)=>(\\d)+\\*(\\w[^:]+:[^/]+)/(\\d+)=>(\\w[^:]+:[^/]+)/(\\d+)$";
+        final String REGEX = "^(\\w[^:]+:[^/]+)/(\\d+)=>(\\d+)\\*(\\w[^:]+:[^/]+)/(\\d+)=>(\\w[^:]+:[^/]+)/(\\d+)$";
         Pattern p = Pattern.compile(REGEX);
         Matcher m = p.matcher(mappingString);
-        if(!mappingString.isEmpty() && m.matches()) {
-            Block sourceBlock = Block.getBlockFromName(m.group(1));
-            int sourceMeta = Integer.parseInt(m.group(2));
-            int itemCount = Integer.parseInt(m.group(3));
+        try {
+            if(!mappingString.isEmpty() && m.matches()) {
+                Block sourceBlock = Block.getBlockFromName(m.group(1));
+                int sourceMeta = Integer.parseInt(m.group(2));
+                int itemCount = Integer.parseInt(m.group(3));
 
-            String itemString = m.group(4);
-            Item itemItem = GameRegistry.findItem(itemString.split(":", 2)[0], itemString.split(":", 2)[1]);
+                String itemString = m.group(4);
+                Item itemItem = GameRegistry.findItem(itemString.split(":", 2)[0], itemString.split(":", 2)[1]);
 
-            int itemMeta = Integer.parseInt(m.group(5));
-            Block targetBlock = Block.getBlockFromName(m.group(6));
-            int targetMeta = Integer.parseInt(m.group(7));
+                int itemMeta = Integer.parseInt(m.group(5));
+                Block targetBlock = Block.getBlockFromName(m.group(6));
+                int targetMeta = Integer.parseInt(m.group(7));
 
-            if(sourceBlock != null && itemItem != null && targetBlock != null) {
-                ItemStack itemItemstack = new ItemStack(itemItem, itemCount, itemMeta);
-                CustomMapping newMapping = new CustomMapping(sourceBlock, sourceMeta, itemItemstack, targetBlock, targetMeta);
-                BetterBuildersWandsMod.logger.info(String.format("Added '%s' to mapping", mappingString));
-                return newMapping;
+                if(sourceBlock != null && itemItem != null && targetBlock != null
+                        && itemCount > 0 && itemCount <= 4096 && sourceMeta <= 15 && targetMeta <= 15
+                        && itemMeta <= 32767) {
+                    ItemStack itemItemstack = new ItemStack(itemItem, itemCount, itemMeta);
+                    CustomMapping newMapping = new CustomMapping(sourceBlock, sourceMeta, itemItemstack, targetBlock, targetMeta);
+                    BetterBuildersWandsMod.logger.info(String.format("Added '%s' to mapping", mappingString));
+                    return newMapping;
+                }
             }
+        } catch (NumberFormatException ignored) {
+            // Reject overflowing config values instead of changing their meaning.
         }
         BetterBuildersWandsMod.logger.error(String.format("Error adding '%s' to mapping", mappingString));
         return null;

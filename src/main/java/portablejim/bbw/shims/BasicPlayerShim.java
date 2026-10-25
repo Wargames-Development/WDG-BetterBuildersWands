@@ -2,14 +2,11 @@ package portablejim.bbw.shims;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.init.Blocks;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import portablejim.bbw.basics.Point3d;
 import vazkii.botania.api.item.IBlockProvider;
 
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Wrap a player to provide basic functions.
@@ -47,76 +44,59 @@ public class BasicPlayerShim implements IPlayerShim {
         return 5F;
     }
 
-    @Override
-    public int countItems(ItemStack itemStack) {
-        int total = 0;
-        if(itemStack == null || player.inventory == null || player.inventory.mainInventory == null) {
-            return 0;
-        }
-
-        Block block = getBlock(itemStack);
-        int meta = getBlockMeta(itemStack);
-
-        for(ItemStack inventoryStack : player.inventory.mainInventory) {
-            if(inventoryStack != null && itemStack.isItemEqual(inventoryStack)) {
-                total += Math.max(0, inventoryStack.stackSize);
-            }
-            else if(providersEnabled && inventoryStack != null && inventoryStack.getItem() instanceof IBlockProvider) {
-                IBlockProvider prov = (IBlockProvider) inventoryStack.getItem();
-                int provCount = prov.getBlockCount(player, itemStack, inventoryStack, block, meta);
-                if(provCount == -1)
-                    return Integer.MAX_VALUE;
-                total += provCount;
-            }
-        }
-
-        return itemStack.stackSize > 0 ? total / itemStack.stackSize : 0;
+    private boolean matches(ItemStack required, ItemStack available) {
+        return available != null && required.isItemEqual(available)
+                && ItemStack.areItemStackTagsEqual(required, available);
     }
 
     @Override
-    public boolean useItem(ItemStack itemStack) {
-        if(itemStack == null || player.inventory == null || player.inventory.mainInventory == null) {
-            return false;
+    public int countItems(ItemStack required) {
+        if (required == null || required.stackSize <= 0 || player.inventory == null) return 0;
+        long total = 0;
+        for (ItemStack stack : player.inventory.mainInventory) {
+            if (matches(required, stack)) {
+                total += Math.max(0, stack.stackSize);
+            } else if (required.stackSize == 1 && providersEnabled && stack != null
+                    && stack.getItem() instanceof IBlockProvider) {
+                int count = ((IBlockProvider) stack.getItem()).getBlockCount(
+                        player, required, stack, getBlock(required), getBlockMeta(required));
+                if (count == -1) return Integer.MAX_VALUE;
+                total += Math.max(0, count);
+            }
         }
+        return (int) Math.min(Integer.MAX_VALUE, total / required.stackSize);
+    }
 
-        // Reverse direction to leave hotbar to last.
-        int toUse = itemStack.stackSize;
-        List<ItemStack> providers = new ArrayList<ItemStack>();
-        for(int i = player.inventory.mainInventory.length - 1; i >= 0; i--) {
-            ItemStack inventoryStack = player.inventory.mainInventory[i];
-            if(inventoryStack != null && itemStack.isItemEqual(inventoryStack)) {
-                if(inventoryStack.stackSize < toUse) {
-                    inventoryStack.stackSize = 0;
-                    toUse -= inventoryStack.stackSize;
-                }
-                else {
-                    inventoryStack.stackSize = inventoryStack.stackSize - toUse;
-                    toUse = 0;
-                }
-                if(inventoryStack.stackSize == 0) {
-                    player.inventory.setInventorySlotContents(i, null);
-                }
-                player.inventoryContainer.detectAndSendChanges();
-                if(toUse <= 0) {
+    @Override
+    public boolean useItem(ItemStack required) {
+        if (required == null || required.stackSize <= 0 || player.inventory == null) return false;
+        long available = 0;
+        for (ItemStack stack : player.inventory.mainInventory) {
+            if (matches(required, stack)) available += Math.max(0, stack.stackSize);
+        }
+        if (available >= required.stackSize) {
+            int remaining = required.stackSize;
+            for (int i = player.inventory.mainInventory.length - 1; i >= 0 && remaining > 0; i--) {
+                ItemStack stack = player.inventory.mainInventory[i];
+                if (!matches(required, stack)) continue;
+                int consumed = Math.min(remaining, Math.max(0, stack.stackSize));
+                remaining -= consumed;
+                stack.stackSize -= consumed;
+                if (stack.stackSize == 0) player.inventory.setInventorySlotContents(i, null);
+            }
+            player.inventory.markDirty();
+            return true;
+        }
+        // Providers have no multi-item rollback contract. Never partially debit inventory.
+        if (required.stackSize == 1 && providersEnabled) {
+            for (ItemStack stack : player.inventory.mainInventory) {
+                if (stack != null && stack.getItem() instanceof IBlockProvider
+                        && ((IBlockProvider) stack.getItem()).provideBlock(
+                        player, required, stack, getBlock(required), getBlockMeta(required), true)) {
                     return true;
                 }
             }
-            else if(providersEnabled && inventoryStack != null && inventoryStack.getItem() instanceof IBlockProvider) {
-                providers.add(inventoryStack);
-            }
         }
-
-        // IBlockProvider does not support removing more than one item in an atomic operation.
-        if (toUse == 1) {
-            Block block = getBlock(itemStack);
-            int meta = getBlockMeta(itemStack);
-            for(ItemStack provStack : providers) {
-                IBlockProvider prov = (IBlockProvider) provStack.getItem();
-                if(prov.provideBlock(player, itemStack, provStack, block, meta, true))
-                    return true;
-            }
-        }
-
         return false;
     }
 

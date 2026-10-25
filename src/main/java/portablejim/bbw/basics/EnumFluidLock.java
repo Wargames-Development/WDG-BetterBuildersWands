@@ -17,6 +17,6 @@ public enum EnumFluidLock {
         EnumFluidLock locks[] = {STOPAT, IGNORE };
 
         int safeMask = inputMask & 3;
-        return locks[safeMask - 1];
+        return safeMask >= 1 && safeMask <= locks.length ? locks[safeMask - 1] : STOPAT;
     }
 }

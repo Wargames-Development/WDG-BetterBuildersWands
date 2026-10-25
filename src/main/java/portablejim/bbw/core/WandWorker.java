@@ -1,25 +1,19 @@
 package portablejim.bbw.core;
 
 import apis.wgc.Integrations;
-import cpw.mods.fml.common.FMLLog;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
-import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.common.util.ForgeDirection;
-import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.fluids.IFluidBlock;
-import org.apache.logging.log4j.Logger;
 import portablejim.bbw.BetterBuildersWandsMod;
 import portablejim.bbw.basics.EnumFluidLock;
 import portablejim.bbw.core.conversion.CustomMapping;
 import portablejim.bbw.core.wands.IWand;
 import portablejim.bbw.basics.EnumLock;
 import portablejim.bbw.basics.Point3d;
-import portablejim.bbw.shims.BlockShim;
 import portablejim.bbw.shims.IPlayerShim;
 import portablejim.bbw.shims.IWorldShim;
 
@@ -45,18 +39,32 @@ public class WandWorker {
         this.world = world;
     }
 
+    private Block outputBlock(Block source, int meta) {
+        CustomMapping mapping = BetterBuildersWandsMod.instance.mappingManager.getMapping(source, meta);
+        return mapping == null ? source : mapping.getPlaceBlock();
+    }
+
+    private int outputMeta(Block source, int meta) {
+        CustomMapping mapping = BetterBuildersWandsMod.instance.mappingManager.getMapping(source, meta);
+        return mapping == null ? meta : mapping.getPlaceMeta();
+    }
+
+    private boolean supported(Block block, int meta) {
+        // Raw copying cannot honor tile-entity/flag placement, ownership or inventory contracts.
+        return block != null && !block.hasTileEntity(meta)
+                && !BetterBuildersWandsMod.instance.configValues.HARD_BLACKLIST_SET.contains(
+                String.format("%s/%s", Block.blockRegistry.getNameForObject(block), meta));
+    }
+
     public ItemStack getProperItemStack(IWorldShim world, IPlayerShim player, Point3d blockPos) {
         Block block = world.getBlock(blockPos);
         int meta = world.getMetadata(blockPos);
-        String blockString = String.format("%s/%s", Block.blockRegistry.getNameForObject(block), meta);
-        if(!BetterBuildersWandsMod.instance.configValues.HARD_BLACKLIST_SET.contains(blockString)) {
-            ItemStack exactItemstack = new ItemStack(block, 1, meta);
-            if (Item.getItemFromBlock(block) != null && player.countItems(exactItemstack) > 0) {
-                return exactItemstack;
-            }
-            return getEquivalentItemStack(blockPos);
-        }
-        return null;
+        if (!supported(block, meta) || !supported(outputBlock(block, meta), outputMeta(block, meta))) return null;
+        CustomMapping mapping = BetterBuildersWandsMod.instance.mappingManager.getMapping(block, meta);
+        if (mapping != null) return mapping.getItems();
+        ItemStack exact = new ItemStack(block, 1, meta);
+        if (Item.getItemFromBlock(block) != null && player.countItems(exact) > 0) return exact;
+        return getEquivalentItemStack(blockPos);
     }
 
     public ItemStack getEquivalentItemStack(Point3d blockPos) {
@@ -93,17 +101,18 @@ public class WandWorker {
         }*/
         if(!targetBlock.equals(candidateSupportingBlock)) return false;
         if(targetMetadata != candidateSupportingMeta) return false;
-        //if(targetBlock instanceof BlockCrops) return false;
-        if(!Integrations.canPlaceBlockWGC(player.getPlayer().getUniqueID(),world.getWorld(),targetBlock,currentCandidate.x,currentCandidate.y,currentCandidate.z)) return false;//ugh
-        if(!targetBlock.canPlaceBlockAt(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
-        if(!targetBlock.canBlockStay(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z)) return false;
-        if(!targetBlock.canReplace(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z, targetMetadata, new ItemStack(candidateSupportingBlock, 1, candidateSupportingMeta))) return false;
+        Block placedBlock = outputBlock(targetBlock, targetMetadata);
+        int placedMeta = outputMeta(targetBlock, targetMetadata);
+        if (!canPlace(currentCandidate, placedBlock, placedMeta)) return false;
+        blockBB = placedBlock.getCollisionBoundingBoxFromPool(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z);
 
         return !world.entitiesInBox(blockBB);
 
     }
 
     public LinkedList<Point3d> getBlockPositionList(Point3d blockLookedAt, ForgeDirection placeDirection, int maxBlocks, EnumLock directionLock, EnumLock faceLock, EnumFluidLock fluidLock) {
+        allCandidates.clear();
+        maxBlocks = Math.min(16384, Math.max(0, maxBlocks));
         LinkedList<Point3d> candidates = new LinkedList<Point3d>();
         LinkedList<Point3d> toPlace = new LinkedList<Point3d>();
 
@@ -122,12 +131,12 @@ public class WandWorker {
         while(candidates.size() > 0 && toPlace.size() < maxBlocks) {
             Point3d currentCandidate = candidates.removeFirst();
 
+            if (!allCandidates.add(currentCandidate)) continue;
             Point3d supportingPoint = currentCandidate.move(placeDirection.getOpposite());
             Block candidateSupportingBlock = world.getBlock(supportingPoint);
             int candidateSupportingMeta = world.getMetadata(supportingPoint);
             AxisAlignedBB blockBB =targetBlock.getCollisionBoundingBoxFromPool(world.getWorld(), currentCandidate.x, currentCandidate.y, currentCandidate.z);
-            if(shouldContinue(currentCandidate, targetBlock, targetMetadata, candidateSupportingBlock, candidateSupportingMeta, blockBB, fluidLock)
-                    && allCandidates.add(currentCandidate)) {
+            if(shouldContinue(currentCandidate, targetBlock, targetMetadata, candidateSupportingBlock, candidateSupportingMeta, blockBB, fluidLock)) {
                 toPlace.add(currentCandidate);
 
                 switch (placeDirection) {
@@ -193,41 +202,37 @@ public class WandWorker {
         return toPlace;
     }
 
-    public ArrayList<Point3d> placeBlocks(ItemStack wandItem, LinkedList<Point3d> blockPosList, Point3d originalBlock, ItemStack sourceItems, int side, float hitX, float hitY, float hitZ) {
-        ArrayList<Point3d> placedBlocks = new ArrayList<Point3d>();
-        for(Point3d blockPos : blockPosList) {
-            boolean blockPlaceSuccess;
-            CustomMapping mapping = BetterBuildersWandsMod.instance.mappingManager.getMapping(world.getBlock(originalBlock), world.getMetadata(originalBlock));
-            if(mapping != null) {
-                blockPlaceSuccess = world.setBlock(blockPos, mapping.getPlaceBlock(), mapping.getPlaceMeta());
-            }
-            else {
-                blockPlaceSuccess = world.copyBlock(originalBlock, blockPos);
-            }
+    private boolean canPlace(Point3d pos, Block block, int meta) {
+        if (!supported(block, meta) || pos.y < 0 || pos.y >= world.getWorld().getHeight()
+                || !world.getWorld().blockExists(pos.x, pos.y, pos.z)) return false;
+        if (!Integrations.canPlaceBlockWGC(player.getPlayer().getUniqueID(), world.getWorld(), block, pos.x, pos.y, pos.z)) return false;
+        return block.canPlaceBlockAt(world.getWorld(), pos.x, pos.y, pos.z)
+                && block.canBlockStay(world.getWorld(), pos.x, pos.y, pos.z)
+                && block.canReplace(world.getWorld(), pos.x, pos.y, pos.z, meta, new ItemStack(block, 1, meta));
+    }
 
-            if(blockPlaceSuccess) {
-                Item itemFromBlock = Item.getItemFromBlock(world.getBlock(originalBlock));
-                world.playPlaceAtBlock(blockPos, world.getBlock(originalBlock));
-                /*if(sourceItems.getItem() instanceof ItemBlock) {
-                    ItemBlock itemBlock = (ItemBlock) sourceItems.getItem();
-                    itemBlock.placeBlockAt(sourceItems, player.getPlayer(), world.getWorld(), blockPos.x, blockPos.y, blockPos.z, side, hitX, hitY, hitZ, sourceItems.getItemDamage());
-                }
-                else {
-                    world.playPlaceAtBlock(blockPos, world.getBlock(originalBlock));
-                }*/
-                placedBlocks.add(blockPos);
-                if (!player.isCreative()) {
-                    wand.placeBlock(wandItem, player.getPlayer());
-                }
-                boolean takeFromInventory = player.useItem(sourceItems);
-                if(!takeFromInventory) {
-                    FMLLog.info("BBW takeback: %s", blockPos.toString());
-                    world.setBlockToAir(blockPos);
-                    placedBlocks.remove(placedBlocks.size() - 1);
-                }
+    public ArrayList<Point3d> placeBlocks(final ItemStack wandItem, LinkedList<Point3d> blockPosList, Point3d originalBlock, final ItemStack sourceItems, int side, float hitX, float hitY, float hitZ) {
+        ArrayList<Point3d> placedBlocks = new ArrayList<Point3d>();
+        if (world.getWorld().isRemote || sourceItems == null || sourceItems.stackSize <= 0 || side < 0 || side > 5) return placedBlocks;
+        Block source = world.getBlock(originalBlock);
+        int sourceMeta = world.getMetadata(originalBlock);
+        final Block placedBlock = outputBlock(source, sourceMeta);
+        final int placedMeta = outputMeta(source, sourceMeta);
+        for (Point3d pos : blockPosList) {
+            if (wandItem.stackSize <= 0 || wand.getMaxBlocks(wandItem) <= 0 || player.countItems(sourceItems) <= 0) break;
+            if (!canPlace(pos, placedBlock, placedMeta)
+                    || !player.getPlayer().canPlayerEdit(pos.x, pos.y, pos.z, side, new ItemStack(placedBlock, 1, placedMeta))
+                    || !world.getWorld().canMineBlock(player.getPlayer(), pos.x, pos.y, pos.z)
+                    || world.entitiesInBox(placedBlock.getCollisionBoundingBoxFromPool(world.getWorld(), pos.x, pos.y, pos.z))) continue;
+            if (PlacementTransaction.place(world.getWorld(), player.getPlayer(), pos, placedBlock, placedMeta,
+                    ForgeDirection.getOrientation(side), new PlacementTransaction.Payment() {
+                        @Override public boolean consume() { return player.useItem(sourceItems); }
+                    })) {
+                placedBlocks.add(pos);
+                if (!player.isCreative()) wand.placeBlock(wandItem, player.getPlayer());
+                world.playPlaceAtBlock(pos, placedBlock);
             }
         }
-
         return placedBlocks;
     }
 }
